@@ -1,6 +1,6 @@
 #!/usr/init/env python3
 """
-IMG-SMOOTHER - Advanced Text & Handwriting Upscaler and Edge Softener
+upscablur- Advanced Text & Handwriting Upscaler and Edge Softener
 An interactive tool to upscale images first (high-quality Lanczos) and apply 
 fine Gaussian blur to smooth text and handwriting edges naturally.
 """
@@ -23,7 +23,7 @@ BANNER = r"""
 |  |  \____ \/  ___// ___\\__  \ | __ \|  | |  |  \_  __ \
 |  |  /  |_> >___ \\  \___ / __ \| \_\ \  |_|  |  /|  | \/
 |____/|   __/____  >\___  >____  /___  /____/____/ |__|   
-      |__|       \/     \/     \/    \/                   
+      |__|       \/     \/     \/    \/By Mohamed BOURI 
                                                 
 """
 
