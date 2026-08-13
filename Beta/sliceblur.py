@@ -286,76 +286,45 @@ def ask_blur() -> float:
             sys.exit(130)
 
 
-# ── Main Interactive CLI ─────────────────────────────────────────────
+# ── Order selection ───────────────────────────────────────────────────
 
-def main():
-    _divider("=")
-    print("  SLICEBLUR - Slice -> Upscale -> Blur Pipeline")
-    _divider("=")
-    print()
+def ask_order() -> str:
+    """Ask the user which stage should run first this session.
+    Returns 'blur_first' or 'slice_first'. Stage 1 (UpscaBlur) and
+    Stage 2 (Slicer) are fixed names for the two tools -- this choice
+    only controls which one runs first and which one runs second."""
+    while True:
+        try:
+            print("Which would you like to run first?")
+            print("  [1] Stage 1 - UpscaBlur (upscale then blur) first, then Stage 2 - Slicer")
+            print("  [2] Stage 2 - Slicer first, then Stage 1 - UpscaBlur (upscale then blur)")
+            choice = input(" Choice (1/2): ").strip()
+            if choice == "1":
+                return "blur_first"
+            if choice == "2":
+                return "slice_first"
+            _err("Please enter 1 or 2.")
+        except (KeyboardInterrupt, EOFError):
+            print()
+            _err("Operation cancelled by user.")
+            sys.exit(130)
 
-    if not PIL_OK:
-        _err("Pillow library is not installed!")
-        print("Please run the following command to install it: pip install Pillow")
-        sys.exit(1)
 
-    work_dir = Path(__file__).resolve().parent
-    sliced_dir = work_dir / "sliced"    # Stage 1 output / Stage 2 input
-    final_dir = work_dir / "output"     # Stage 2 output (the pipeline's final result)
+# ── Stage runners (each owns its own banner, prompts, and I/O) ────────
 
-    # ================= STAGE 1: SLICER ================= #
-    print(SLICER_BANNER)
-    _section("STAGE 1/2 - IMG-SLICER: slicing source images")
-
-    source_images = find_images(work_dir)
-    if not source_images:
-        _err(f"No images found in the directory: {work_dir}")
-        print(f"Supported formats: {', '.join(sorted(VALID_EXTENSIONS))}")
-        sys.exit(1)
-
-    _info(f"Found {len(source_images)} image(s) in the script's directory.")
-    print()
-
-    rows, cols = ask_grid()
-
-    print()
-    _divider("-")
-    _info("Setting up workspace...")
-
-    if not sliced_dir.exists():
-        sliced_dir.mkdir()
-        _ok("Created intermediate directory: sliced/")
-    else:
-        _info("Intermediate directory sliced/ already exists (new parts will be added to it).")
-
-    _info(f"Slicing layout: {rows} horizontal rows x {cols} vertical columns.")
-    print()
-
-    slice_success = run_slice_stage(work_dir, sliced_dir, rows, cols)
-
-    print()
-    _divider("=")
-    if slice_success == len(source_images):
-        _ok(f"Stage 1 finished successfully! Sliced all images ({slice_success}/{len(source_images)}).")
-    else:
-        _info(f"Stage 1 finished. Successfully sliced ({slice_success}/{len(source_images)}) image(s).")
-    print(f"Sliced parts saved in: {sliced_dir.absolute()}")
-    _divider("=")
-
-    if slice_success == 0:
-        _err("Stage 1 produced no parts, so there is nothing for Stage 2 to upscale/blur. Stopping.")
-        sys.exit(1)
-
-    # ================= STAGE 2: UPSCABLUR ================= #
+def stage_upscablur(source_dir: Path, output_dir: Path, source_label: str, position: int) -> int:
+    """Runs the UpscaBlur stage end-to-end against every image directly
+    inside source_dir, saving results to output_dir. Returns how many
+    images were processed successfully (0 if the source had no images)."""
     print(UPSCABLUR_BANNER)
-    _section("STAGE 2/2 - UPSCABLUR: upscaling then blurring the sliced parts")
+    _section(f"STAGE 1 - UPSCABLUR: upscale then blur  [running {position}/2 this session]")
 
-    sliced_parts = find_images(sliced_dir)
-    if not sliced_parts:
-        _err(f"No sliced parts found in: {sliced_dir}")
-        sys.exit(1)
+    images = find_images(source_dir)
+    if not images:
+        _err(f"No images found in: {source_dir}")
+        return 0
 
-    _info(f"Found {len(sliced_parts)} sliced part(s) from Stage 1 to process.")
+    _info(f"Found {len(images)} {source_label} to process.")
     print()
 
     scale_factor = ask_scale()
@@ -366,32 +335,130 @@ def main():
     _divider("-")
     _info("Setting up workspace...")
 
-    if not final_dir.exists():
-        final_dir.mkdir()
-        _ok("Created output directory: output/")
+    if not output_dir.exists():
+        output_dir.mkdir()
+        _ok(f"Created directory: {output_dir.name}/")
     else:
-        _info("Output directory output/ already exists (new results will be added to it).")
+        _info(f"Directory {output_dir.name}/ already exists (new results will be added to it).")
 
     _info(f"Configuration: Upscale by {scale_factor * 100:.0f}% (Lanczos) | Blur radius: {blur_radius}")
     print()
 
-    blur_success = run_upscablur_stage(sliced_dir, final_dir, scale_factor, blur_radius)
+    success = run_upscablur_stage(source_dir, output_dir, scale_factor, blur_radius)
 
     print()
     _divider("=")
-    if blur_success == len(sliced_parts):
-        _ok(f"Stage 2 finished successfully! Processed all parts ({blur_success}/{len(sliced_parts)}).")
+    if success == len(images):
+        _ok(f"Stage 1 finished successfully! Processed all images ({success}/{len(images)}).")
     else:
-        _info(f"Stage 2 finished. Successfully processed ({blur_success}/{len(sliced_parts)}) part(s).")
-    print(f"Final results saved in: {final_dir.absolute()}")
+        _info(f"Stage 1 finished. Successfully processed ({success}/{len(images)}) image(s).")
+    print(f"Results saved in: {output_dir.absolute()}")
     _divider("=")
+    return success
+
+
+def stage_slicer(source_dir: Path, output_dir: Path, source_label: str, position: int) -> int:
+    """Runs the Slicer stage end-to-end against every image directly
+    inside source_dir, saving parts to output_dir. Returns how many
+    source images were sliced successfully (0 if the source had no images)."""
+    print(SLICER_BANNER)
+    _section(f"STAGE 2 - IMG-SLICER: slicing images  [running {position}/2 this session]")
+
+    images = find_images(source_dir)
+    if not images:
+        _err(f"No images found in: {source_dir}")
+        return 0
+
+    _info(f"Found {len(images)} {source_label} to slice.")
+    print()
+
+    rows, cols = ask_grid()
+
+    print()
+    _divider("-")
+    _info("Setting up workspace...")
+
+    if not output_dir.exists():
+        output_dir.mkdir()
+        _ok(f"Created directory: {output_dir.name}/")
+    else:
+        _info(f"Directory {output_dir.name}/ already exists (new parts will be added to it).")
+
+    _info(f"Slicing layout: {rows} horizontal rows x {cols} vertical columns.")
+    print()
+
+    success = run_slice_stage(source_dir, output_dir, rows, cols)
+
+    print()
+    _divider("=")
+    if success == len(images):
+        _ok(f"Stage 2 finished successfully! Sliced all images ({success}/{len(images)}).")
+    else:
+        _info(f"Stage 2 finished. Successfully sliced ({success}/{len(images)}) image(s).")
+    print(f"Sliced parts saved in: {output_dir.absolute()}")
+    _divider("=")
+    return success
+
+
+# ── Main Interactive CLI ─────────────────────────────────────────────
+
+def main():
+    _divider("=")
+    print("  SLICEBLUR - Slice + Upscale/Blur Pipeline")
+    _divider("=")
+    print()
+
+    if not PIL_OK:
+        _err("Pillow library is not installed!")
+        print("Please run the following command to install it: pip install Pillow")
+        sys.exit(1)
+
+    work_dir = Path(__file__).resolve().parent
+
+    source_images = find_images(work_dir)
+    if not source_images:
+        _err(f"No images found in the directory: {work_dir}")
+        print(f"Supported formats: {', '.join(sorted(VALID_EXTENSIONS))}")
+        sys.exit(1)
+
+    _info(f"Found {len(source_images)} image(s) in the script's directory.")
+    print()
+
+    order = ask_order()
+    print()
+
+    final_dir = work_dir / "output"   # whichever stage runs 2nd always writes the final result here
+
+    if order == "blur_first":
+        smoothed_dir = work_dir / "smoothed"
+        first_success = stage_upscablur(work_dir, smoothed_dir, "image(s) in the script's directory", position=1)
+        if first_success == 0:
+            _err("Stage 1 produced no results, so there is nothing for Stage 2 to slice. Stopping.")
+            sys.exit(1)
+        second_success = stage_slicer(smoothed_dir, final_dir, "smoothed image(s) from Stage 1", position=2)
+        first_dir, first_label = smoothed_dir, "Stage 1 output (upscaled + blurred)"
+        second_label = "Stage 2 output (final, sliced)"
+    else:
+        sliced_dir = work_dir / "sliced"
+        first_success = stage_slicer(work_dir, sliced_dir, "image(s) in the script's directory", position=1)
+        if first_success == 0:
+            _err("Stage 2 produced no parts, so there is nothing for Stage 1 to process. Stopping.")
+            sys.exit(1)
+        second_success = stage_upscablur(sliced_dir, final_dir, "sliced part(s) from Stage 2", position=2)
+        first_dir, first_label = sliced_dir, "Stage 2 output (sliced parts)"
+        second_label = "Stage 1 output (final, upscaled + blurred)"
+
+    if second_success == 0:
+        _err("The second stage produced no results. Check the errors above.")
+        sys.exit(1)
 
     # ================= Pipeline summary ================= #
     print()
     _divider("=")
-    _ok("Pipeline complete: slice -> upscale -> blur.")
-    print(f"  Stage 1 output (sliced parts):    {sliced_dir.absolute()}")
-    print(f"  Stage 2 output (final, smoothed): {final_dir.absolute()}")
+    _ok("Pipeline complete.")
+    label_width = max(len(first_label), len(second_label)) + 1
+    print(f"  {(first_label + ':').ljust(label_width)} {first_dir.absolute()}")
+    print(f"  {(second_label + ':').ljust(label_width)} {final_dir.absolute()}")
     _divider("=")
 
 
