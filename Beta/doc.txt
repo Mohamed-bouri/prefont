@@ -1,0 +1,512 @@
+============================================================
+  SLICEBLUR - Slice + Upscale/Blur Pipeline
+  Full Documentation
+  By Mohamed BOURI
+============================================================
+
+CONTENTS
+  1. What this tool does
+  2. Requirements
+  3. Installing Pillow
+  4. Folder setup
+  5. Running the tool
+  6. The order menu (choosing which stage runs first)
+  7. Walkthrough A - Stage 2 first (Slicer -> UpscaBlur)
+  8. Walkthrough B - Stage 1 first (UpscaBlur -> Slicer)
+  9. Prompt reference (every question the tool can ask)
+ 10. Output folders and file naming, in full
+ 11. Supported image formats
+ 12. Re-running the tool / existing folders
+ 13. Errors, edge cases, and exit codes
+ 14. Quick reference / cheat sheet
+
+
+------------------------------------------------------------
+1. WHAT THIS TOOL DOES
+------------------------------------------------------------
+sliceblur.py merges two separate tools into one interactive pipeline:
+
+  Stage 1 - UpscaBlur
+    Upscales an image using high-quality Lanczos resampling, THEN
+    applies a fine Gaussian blur on top of the upscaled result -- in
+    that fixed order, always. This is meant to smooth jagged text and
+    handwriting edges naturally.
+
+  Stage 2 - Slicer
+    Cuts an image into a grid of rectangular parts (rows x columns)
+    and saves each part as its own file.
+
+"Stage 1" and "Stage 2" are fixed names for these two tools -- they do
+NOT mean "runs first" / "runs second". Every time you run the script,
+you are asked which stage should actually run first. Whichever stage
+runs second always processes the FIRST stage's output, never the
+original images directly. That chaining is the whole point of merging
+the two tools: you never have to manually move files between them.
+
+
+------------------------------------------------------------
+2. REQUIREMENTS
+------------------------------------------------------------
+  - Python 3.8 or newer
+  - The Pillow library (the "PIL" image module)
+
+No other third-party packages are needed. The script checks for
+Pillow itself on startup and tells you exactly what to do if it's
+missing (see section 3).
+
+
+------------------------------------------------------------
+3. INSTALLING PILLOW
+------------------------------------------------------------
+Open a terminal / command prompt and run:
+
+    pip install Pillow
+
+If your system has both Python 2 and 3, or "pip" isn't recognized, try:
+
+    pip3 install Pillow
+        or
+    python -m pip install Pillow
+        or
+    python3 -m pip install Pillow
+
+If you run sliceblur.py without Pillow installed, it will print:
+
+    [-] Pillow library is not installed!
+    Please run the following command to install it: pip install Pillow
+
+...and exit immediately (nothing is processed). Install Pillow and run
+the script again.
+
+
+------------------------------------------------------------
+4. FOLDER SETUP
+------------------------------------------------------------
+sliceblur.py always works on ITS OWN DIRECTORY -- that is, whatever
+folder the script file itself is sitting in, not the folder you happen
+to be running the command from.
+
+Setup:
+  1. Put sliceblur.py in a folder.
+  2. Put the image(s) you want to process directly in that SAME folder
+     (not in a subfolder).
+  3. Run the script from there.
+
+Example folder layout before running:
+
+    my_photos/
+      sliceblur.py
+      page1.png
+      page2.jpg
+      notes.png
+
+The script only looks at files sitting directly inside that folder --
+it does not search subfolders. This also means that once it creates
+its own output subfolders (sliced/, smoothed/, output/ -- see section
+10), those subfolders are never mistaken for new source images on a
+later run, because they're subfolders, not files, and the scanner
+only looks at files.
+
+
+------------------------------------------------------------
+5. RUNNING THE TOOL
+------------------------------------------------------------
+From a terminal, move into the folder containing sliceblur.py and your
+images, then run:
+
+    python sliceblur.py
+
+(or `python3 sliceblur.py`, depending on your system)
+
+Double-clicking the file may also work on some systems, but running it
+from a terminal is recommended so you can see all the prompts and
+messages, and so the window doesn't close immediately if something
+goes wrong.
+
+Everything after this is interactive -- the script asks questions and
+you type answers, exactly like the original two tools did.
+
+
+------------------------------------------------------------
+6. THE ORDER MENU
+------------------------------------------------------------
+After confirming Pillow is installed and that it found at least one
+image in its folder, the script asks:
+
+    Which would you like to run first?
+      [1] Stage 1 - UpscaBlur (upscale then blur) first, then Stage 2 - Slicer
+      [2] Stage 2 - Slicer first, then Stage 1 - UpscaBlur (upscale then blur)
+     Choice (1/2):
+
+Type 1 or 2 and press Enter. Anything else (blank, letters, "3", etc.)
+prints "[-] Please enter 1 or 2." and asks again -- it will not
+proceed until you enter a valid choice.
+
+Which one should you pick?
+
+  Pick [2] (Slicer first) if you want to:
+    - Cut a page/image into pieces first, and then smooth each
+      individual piece on its own.
+    - This is the original intended order: slice, then upscale+blur
+      each resulting part.
+
+  Pick [1] (UpscaBlur first) if you want to:
+    - Smooth the WHOLE image first (so the blur is continuous and
+      consistent across the entire picture, with no visible seams at
+      what will become tile boundaries), and only THEN cut the
+      already-smoothed result into grid pieces.
+    - Generally the better choice if the grid boundaries would
+      otherwise cut through blurred edges and you don't want a visible
+      "seam" where two separately-blurred tiles meet.
+
+Both orders use the exact same underlying Stage 1 and Stage 2 logic --
+only the order, the intermediate folder name, and what gets fed into
+the second stage change. See sections 7 and 8 for exact walkthroughs
+of both.
+
+
+------------------------------------------------------------
+7. WALKTHROUGH A - Stage 2 first (Slicer -> UpscaBlur)
+------------------------------------------------------------
+Folder before running (one image, page.png):
+
+    my_photos/
+      sliceblur.py
+      page.png
+
+Run the script and choose option 2 at the order menu. Full example
+session (your typed answers are shown after each prompt):
+
+    Which would you like to run first?
+      [1] Stage 1 - UpscaBlur (upscale then blur) first, then Stage 2 - Slicer
+      [2] Stage 2 - Slicer first, then Stage 1 - UpscaBlur (upscale then blur)
+     Choice (1/2): 2
+
+    ============================================================
+      STAGE 2 - IMG-SLICER: slicing images  [running 1/2 this session]
+    ============================================================
+
+    [*] Found 1 image(s) in the script's directory to slice.
+
+    Enter the number of required parts:
+     (e.g., '4 1' for 4 horizontal rows and 1 vertical column): 2 4
+
+    [*] Setting up workspace...
+    [+] Created directory: sliced/
+    [*] Slicing layout: 2 horizontal rows x 4 vertical columns.
+
+    [1/1] Slicing: page.png ... Success!
+
+    [+] Stage 2 finished successfully! Sliced all images (1/1).
+    Sliced parts saved in: .../my_photos/sliced
+
+    ============================================================
+      STAGE 1 - UPSCABLUR: upscale then blur  [running 2/2 this session]
+    ============================================================
+
+    [*] Found 8 sliced part(s) from Stage 2 to process.
+
+    Step 1: Enter upscale percentage (Recommended: 300% to 500% for text):
+     (e.g., '400' for 400%): 300
+
+    Step 2: Enter Gaussian blur radius for edge softening:
+     (Recommended for text/handwriting: '0.5' to '1.5', or '0' for none): 1.0
+
+    [*] Setting up workspace...
+    [+] Created directory: output/
+    [*] Configuration: Upscale by 300% (Lanczos) | Blur radius: 1.0
+
+    [1/8] Processing: page_part01.png ... Success!
+    [2/8] Processing: page_part02.png ... Success!
+       ... (one line per part) ...
+    [8/8] Processing: page_part08.png ... Success!
+
+    [+] Stage 1 finished successfully! Processed all images (8/8).
+    Results saved in: .../my_photos/output
+
+    ============================================================
+    [+] Pipeline complete.
+      Stage 2 output (sliced parts):        .../my_photos/sliced
+      Stage 1 output (final, upscaled + blurred): .../my_photos/output
+    ============================================================
+
+Folder after running:
+
+    my_photos/
+      sliceblur.py
+      page.png                       (untouched original)
+      sliced/
+        page_part01.png ... page_part08.png     (8 grid pieces, 2 rows x 4 cols)
+      output/
+        page_part01_smoothed.png ... page_part08_smoothed.png   (FINAL results)
+
+The images you actually want are in output/.
+
+
+------------------------------------------------------------
+8. WALKTHROUGH B - Stage 1 first (UpscaBlur -> Slicer)
+------------------------------------------------------------
+Same starting folder (page.png). This time choose option 1 at the
+order menu:
+
+    Which would you like to run first?
+      [1] Stage 1 - UpscaBlur (upscale then blur) first, then Stage 2 - Slicer
+      [2] Stage 2 - Slicer first, then Stage 1 - UpscaBlur (upscale then blur)
+     Choice (1/2): 1
+
+    ============================================================
+      STAGE 1 - UPSCABLUR: upscale then blur  [running 1/2 this session]
+    ============================================================
+
+    [*] Found 1 image(s) in the script's directory to process.
+
+    Step 1: Enter upscale percentage (Recommended: 300% to 500% for text):
+     (e.g., '400' for 400%): 300
+
+    Step 2: Enter Gaussian blur radius for edge softening:
+     (Recommended for text/handwriting: '0.5' to '1.5', or '0' for none): 1.0
+
+    [*] Setting up workspace...
+    [+] Created directory: smoothed/
+    [*] Configuration: Upscale by 300% (Lanczos) | Blur radius: 1.0
+
+    [1/1] Processing: page.png ... Success!
+
+    [+] Stage 1 finished successfully! Processed all images (1/1).
+    Results saved in: .../my_photos/smoothed
+
+    ============================================================
+      STAGE 2 - IMG-SLICER: slicing images  [running 2/2 this session]
+    ============================================================
+
+    [*] Found 1 smoothed image(s) from Stage 1 to slice.
+
+    Enter the number of required parts:
+     (e.g., '4 1' for 4 horizontal rows and 1 vertical column): 2 4
+
+    [*] Setting up workspace...
+    [+] Created directory: output/
+    [*] Slicing layout: 2 horizontal rows x 4 vertical columns.
+
+    [1/1] Slicing: page_smoothed.png ... Success!
+
+    [+] Stage 2 finished successfully! Sliced all images (1/1).
+    Sliced parts saved in: .../my_photos/output
+
+    ============================================================
+    [+] Pipeline complete.
+      Stage 1 output (upscaled + blurred): .../my_photos/smoothed
+      Stage 2 output (final, sliced):      .../my_photos/output
+    ============================================================
+
+Folder after running:
+
+    my_photos/
+      sliceblur.py
+      page.png                       (untouched original)
+      smoothed/
+        page_smoothed.png            (whole image, upscaled + blurred)
+      output/
+        page_smoothed_part01.png ... page_smoothed_part08.png   (FINAL results)
+
+Again, the images you actually want are in output/ -- only the
+intermediate folder's name (sliced/ vs smoothed/) and what it
+contains differ between the two orders.
+
+
+------------------------------------------------------------
+9. PROMPT REFERENCE
+------------------------------------------------------------
+Every question the tool can ask you, what it means, and what counts
+as valid input.
+
+  Order menu
+    "Choice (1/2):"
+    Type exactly 1 or 2. Anything else re-prompts.
+
+  Slicer grid ("Enter the number of required parts")
+    Format: two whole numbers separated by a space -- ROWS then COLS.
+    Example: "2 4" = 2 horizontal rows x 4 vertical columns = 8 parts.
+    Example: "4 1" = 4 rows x 1 column = 4 horizontal strips.
+    Example: "1 1" = no actual slicing, 1 part = the whole image.
+    Both numbers must be greater than zero. Non-numeric input, a
+    single number, or more than two numbers all re-prompt with an
+    error.
+
+  UpscaBlur scale ("Enter upscale percentage")
+    A number greater than 0, with or without a trailing "%".
+    "400" and "400%" are both accepted and mean 400% (4x size).
+    "100" means no size change (1x). Values below 100 shrink the
+    image. Must be greater than 0.
+
+  UpscaBlur blur radius ("Enter Gaussian blur radius")
+    A number >= 0. "0" (or just pressing Enter with nothing typed)
+    means no blur is applied at all -- only the upscale happens.
+    Typical text/handwriting-smoothing values are 0.5 to 1.5. Larger
+    values blur more aggressively.
+
+All prompts loop until you give a valid answer -- invalid input never
+crashes the script, it just prints an error and asks again. Pressing
+Ctrl+C at any prompt cancels the whole run immediately (exit code 130).
+
+
+------------------------------------------------------------
+10. OUTPUT FOLDERS AND FILE NAMING, IN FULL
+------------------------------------------------------------
+Three possible subfolders can appear next to sliceblur.py, depending
+on which order you chose. They are created automatically the first
+time they're needed -- you never create them yourself.
+
+  sliced/     Only appears if Slicer ran FIRST (order 2). Holds the
+              grid pieces cut directly from your original images.
+
+  smoothed/   Only appears if UpscaBlur ran FIRST (order 1). Holds
+              your original images after upscale+blur, before slicing.
+
+  output/     ALWAYS appears. Holds the FINAL result of whichever
+              stage ran second -- this is the folder you actually
+              want the results from, regardless of which order you
+              picked.
+
+Naming pattern:
+
+  Slicer adds "_partNN" before the extension, where NN is a
+  zero-padded 2-digit part number (01, 02, ... 10, 11, ...), numbered
+  left-to-right within each row, then row by row from the top:
+
+      page.png            -> page_part01.png, page_part02.png, ...
+
+  UpscaBlur adds "_smoothed" before the extension:
+
+      page.png            -> page_smoothed.png
+
+  Because each stage just adds its own suffix to whatever filename it
+  receives, running both stages chains the suffixes automatically, in
+  whichever order they ran:
+
+      Slicer then UpscaBlur:   page.png -> page_part01.png -> page_part01_smoothed.png
+      UpscaBlur then Slicer:   page.png -> page_smoothed.png -> page_smoothed_part01.png
+
+  The file extension (.png, .jpg, etc.) is always kept from the
+  original file and never changed.
+
+Grid numbering example (rows=2, cols=4, 8 parts total):
+
+      part01  part02  part03  part04     <- top row, left to right
+      part05  part06  part07  part08     <- bottom row, left to right
+
+  If the image's width/height doesn't divide evenly by the number of
+  columns/rows, the rightmost column and bottom row are stretched
+  slightly to absorb the leftover pixels, so no image content is ever
+  lost or cropped off at the edges.
+
+
+------------------------------------------------------------
+11. SUPPORTED IMAGE FORMATS
+------------------------------------------------------------
+  .png   .jpg   .jpeg   .bmp   .webp   .tiff
+
+(Matched case-insensitively, so .PNG/.JPG etc. also work.) Any other
+file type sitting in the folder is ignored completely -- it will not
+cause an error, it just won't be picked up as an image to process.
+
+Note on transparency: if a source image has transparency (RGBA) or a
+color palette (P mode) and the OUTPUT of a step would be saved as
+.jpg/.jpeg, it is automatically flattened to plain RGB first (JPEG
+cannot store transparency). PNG, WEBP, and TIFF outputs keep
+transparency intact.
+
+
+------------------------------------------------------------
+12. RE-RUNNING THE TOOL / EXISTING FOLDERS
+------------------------------------------------------------
+  - Your original source images are never modified or deleted. Every
+    stage only ever reads them and writes new files elsewhere.
+
+  - If sliced/, smoothed/, or output/ already exist from a previous
+    run, the script reuses them and ADDS the new run's files into
+    them -- it does not clear them out first. You'll see:
+
+        [*] Directory sliced/ already exists (new parts will be added to it).
+
+    (or the equivalent message for smoothed/ or output/)
+
+  - This means if you run the tool twice with DIFFERENT settings (e.g.
+    a different grid size, or once with each order choice), you can
+    end up with a mix of old and new files sitting in the same
+    folder. If you want a clean run, delete the sliced/, smoothed/,
+    and/or output/ folders yourself before running the script again.
+
+  - Because output/ is reused as the "final" folder regardless of
+    which order you pick, running the tool once with each order will
+    leave BOTH sets of final results mixed together in output/. If you
+    want to keep them separate, rename or move output/ between runs.
+
+
+------------------------------------------------------------
+13. ERRORS, EDGE CASES, AND EXIT CODES
+------------------------------------------------------------
+  Pillow not installed
+    Printed immediately, script exits before asking anything.
+    Exit code: 1
+
+  No images found in the script's folder
+    "[-] No images found in the directory: <path>"
+    followed by the list of supported formats. Exit code: 1.
+    (Checked once, right at the start, before the order menu.)
+
+  A stage's source folder ends up with nothing to work on
+    Only checked for the SECOND stage: if the first stage you ran
+    failed on every single image, there's nothing to hand off, so the
+    script stops before even asking the second stage's questions:
+        "[-] Stage 1 produced no results, so there is nothing for
+         Stage 2 to slice. Stopping."                    (order 1)
+        "[-] Stage 2 produced no parts, so there is nothing for
+         Stage 1 to process. Stopping."                  (order 2)
+    Exit code: 1.
+
+  The second stage runs but fails on every file it was given
+    Different from the case above -- here the first stage succeeded
+    and handed off real files, but the second stage then failed on
+    all of them (e.g. every sliced part turned out corrupted):
+        "[-] The second stage produced no results. Check the errors
+         above."
+    Exit code: 1. Scroll up to see the per-file error for each failure.
+
+  An individual image fails to process
+    (corrupted file, unsupported internal format, disk full, etc.)
+    That one image is skipped with an error message and "Failed!" in
+    its progress line; every other image still gets processed
+    normally, and the stage's own summary shows how many succeeded
+    out of the total, e.g. "Successfully sliced (7/8) image(s)."
+
+  Invalid typed input (wrong menu choice, bad numbers, etc.)
+    Never crashes -- prints a specific error and re-asks the same
+    question until you give a valid answer.
+
+  Ctrl+C at any point
+    Immediately cancels the run with "[-] Operation cancelled by
+    user." Exit code: 130.
+
+  Input runs out unexpectedly (e.g. piping too few answers in)
+    "[-] Script unexpectedly stopped (no more input available)."
+    Exit code: 130.
+
+
+------------------------------------------------------------
+14. QUICK REFERENCE / CHEAT SHEET
+------------------------------------------------------------
+  Run:                  python sliceblur.py
+  Where images go:      same folder as sliceblur.py
+  Order menu:            1 = UpscaBlur first     2 = Slicer first
+  Grid prompt format:    "ROWS COLS"  e.g. "2 4" = 8 parts
+  Scale prompt:          percentage, e.g. "400" = 4x size
+  Blur prompt:           radius, "0" or blank = no blur
+  Final results:         always in output/
+  Intermediate results:  sliced/ (order 2) or smoothed/ (order 1)
+  Naming suffixes:       Slicer = "_partNN"   UpscaBlur = "_smoothed"
+  Originals:             never modified
+
+============================================================
+                        END OF DOCUMENT
+============================================================
